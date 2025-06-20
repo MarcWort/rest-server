@@ -79,15 +79,15 @@ func makeBlobMetricFunc(username string, folderPath []string) repo.BlobMetricFun
 
 		switch operation {
 		case repo.BlobRead:
-			metricBlobReadTotal.With(labels).Inc()
+			metricBlobReadTotal.With(labels).Add(float64(max(1, payload))) // only increase counter by 1 if payload is not zero
 			metricBlobReadBytesTotal.With(labels).Add(float64(payload))
 		case repo.BlobWrite:
-			metricBlobWriteTotal.With(labels).Inc()
+			metricBlobWriteTotal.With(labels).Add(float64(max(1, payload)))
 			metricBlobWriteBytesTotal.With(labels).Add(float64(payload))
 			metricRepoLastUpdateTimestamp.WithLabelValues(repoPath).Set(
 				float64(time.Now().UnixMilli()) / 1000.0)
 		case repo.BlobDelete:
-			metricBlobDeleteTotal.With(labels).Inc()
+			metricBlobDeleteTotal.With(labels).Add(float64(max(1, payload)))
 			metricBlobDeleteBytesTotal.With(labels).Add(float64(payload))
 		case repo.RepoPreloadLastUpdate:
 			metricRepoLastUpdateTimestamp.WithLabelValues(repoPath).Set(float64(payload) / 1000.0)

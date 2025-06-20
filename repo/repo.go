@@ -153,6 +153,12 @@ func (h *Handler) PreloadMetrics() error {
 		return err
 	}
 	h.sendMetric("", RepoPreloadLastUpdate, uint64(stat.ModTime().UnixMilli()))
+	// Initalize preloaded oepos with 0 as it best-practice for counters
+	for _, ot := range []string{"data", "index", "locks", "snapshots"} {
+		h.sendMetric(ot, BlobRead, 0)
+		h.sendMetric(ot, BlobWrite, 0)
+		h.sendMetric(ot, BlobDelete, 0)
+	}
 
 	return nil
 }
