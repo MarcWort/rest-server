@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 
-	"github.com/coreos/go-systemd/activation"
+	"github.com/coreos/go-systemd/v22/activation"
 )
 
 // findListener tries to find a listener via systemd socket activation. If that
@@ -23,12 +24,23 @@ func findListener(addr string) (listener net.Listener, err error) {
 	switch len(listeners) {
 	case 0:
 		// no listeners found, listen manually
-		listener, err = net.Listen("tcp", addr)
-		if err != nil {
-			return nil, fmt.Errorf("listen on %v failed: %w", addr, err)
+		if strings.HasPrefix(addr, "unix:") { // if we want to listen on a unix socket
+			unixAddr, err := net.ResolveUnixAddr("unix", strings.TrimPrefix(addr, "unix:"))
+			if err != nil {
+				return nil, fmt.Errorf("unable to understand unix address %s: %w", addr, err)
+			}
+			listener, err = net.ListenUnix("unix", unixAddr)
+			if err != nil {
+				return nil, fmt.Errorf("listen on %v failed: %w", addr, err)
+			}
+		} else { // assume tcp
+			listener, err = net.Listen("tcp", addr)
+			if err != nil {
+				return nil, fmt.Errorf("listen on %v failed: %w", addr, err)
+			}
 		}
 
-		log.Printf("start server on %v", addr)
+		log.Printf("start server on %v", listener.Addr())
 		return listener, nil
 
 	case 1:

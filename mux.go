@@ -2,6 +2,7 @@ package restserver
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -21,9 +22,16 @@ func (s *Server) debugHandler(next http.Handler) http.Handler {
 }
 
 func (s *Server) logHandler(next http.Handler) http.Handler {
-	accessLog, err := os.OpenFile(s.Log, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		log.Fatalf("error: %v", err)
+	var accessLog io.Writer
+
+	if s.Log == "-" {
+		accessLog = os.Stdout
+	} else {
+		var err error
+		accessLog, err = os.OpenFile(s.Log, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			log.Fatalf("error: %v", err)
+		}
 	}
 
 	return handlers.CombinedLoggingHandler(accessLog, next)
@@ -33,10 +41,17 @@ func (s *Server) checkAuth(r *http.Request) (username string, ok bool) {
 	if s.NoAuth {
 		return username, true
 	}
-	var password string
-	username, password, ok = r.BasicAuth()
-	if !ok || !s.htpasswdFile.Validate(username, password) {
-		return "", false
+	if s.ProxyAuthUsername != "" {
+		username = r.Header.Get(s.ProxyAuthUsername)
+		if username == "" {
+			return "", false
+		}
+	} else {
+		var password string
+		username, password, ok = r.BasicAuth()
+		if !ok || !s.htpasswdFile.Validate(username, password) {
+			return "", false
+		}
 	}
 	return username, true
 }
@@ -58,7 +73,7 @@ func (s *Server) wrapMetricsAuth(f http.HandlerFunc) http.HandlerFunc {
 
 // NewHandler returns the master HTTP multiplexer/router.
 func NewHandler(server *Server) (http.Handler, error) {
-	if !server.NoAuth {
+	if !server.NoAuth && server.ProxyAuthUsername == "" {
 		var err error
 		if server.HtpasswdPath == "" {
 			server.HtpasswdPath = filepath.Join(server.Path, ".htpasswd")
